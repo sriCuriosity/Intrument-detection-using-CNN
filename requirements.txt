@@ -3,7 +3,13 @@ pandas
 matplotlib
 seaborn
 librosa
+soundfile
+scipy
 pydub
 tensorflow
 streamlit
 scikit-learn
+torch
+torchaudio
+onnxruntime
+reportlab

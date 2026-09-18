@@ -134,7 +134,7 @@ class NsynthOnnxWrapper:
         spec = self.compute_mel_spec(waveform)
         return spec.detach().numpy()
 
-# ==== Visualization functions (NO CACHING) ====
+# ==== Spectrogram visualization (NO CACHING) ====
 def create_spectrogram_image(mel_spec):
     """Create spectrogram image - NOT CACHED"""
     fig, ax = plt.subplots(figsize=(12, 8))
@@ -147,68 +147,6 @@ def create_spectrogram_image(mel_spec):
     
     buf = BytesIO()
     plt.savefig(buf, format='png', dpi=150, bbox_inches='tight', facecolor='black')
-    buf.seek(0)
-    plt.close(fig)
-    return buf
-
-def create_waveform_image(waveform, sample_rate=SAMPLE_RATE):
-    """Create amplitude vs time waveform visualization"""
-    # Convert to numpy if tensor
-    if torch.is_tensor(waveform):
-        waveform_np = waveform.squeeze().numpy()
-    else:
-        waveform_np = waveform
-    
-    # Create time axis in seconds
-    duration = len(waveform_np) / sample_rate
-    time_axis = np.linspace(0, duration, len(waveform_np))
-    
-    # Create figure with two subplots
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 8))
-    
-    # Full waveform
-    ax1.plot(time_axis, waveform_np, color='#00d4ff', linewidth=0.5, alpha=0.8)
-    ax1.set_title('Full Audio Waveform', fontsize=14, fontweight='bold', pad=15, color='white')
-    ax1.set_xlabel('Time (seconds)', fontsize=11, color='white')
-    ax1.set_ylabel('Amplitude', fontsize=11, color='white')
-    ax1.grid(True, alpha=0.3, linestyle='--', color='gray')
-    ax1.set_facecolor('#1a1a1a')
-    ax1.tick_params(colors='white')
-    ax1.spines['bottom'].set_color('white')
-    ax1.spines['left'].set_color('white')
-    ax1.spines['top'].set_visible(False)
-    ax1.spines['right'].set_visible(False)
-    
-    # Zoomed portion (first 0.1 seconds or available)
-    zoom_duration = min(0.1, duration)
-    zoom_samples = int(zoom_duration * sample_rate)
-    zoom_time = time_axis[:zoom_samples]
-    zoom_wave = waveform_np[:zoom_samples]
-    
-    ax2.plot(zoom_time, zoom_wave, color='#ff6b6b', linewidth=1.2, alpha=0.9)
-    ax2.fill_between(zoom_time, zoom_wave, alpha=0.3, color='#ff6b6b')
-    ax2.set_title(f'Zoomed View (First {zoom_duration:.2f} seconds)', fontsize=14, fontweight='bold', pad=15, color='white')
-    ax2.set_xlabel('Time (seconds)', fontsize=11, color='white')
-    ax2.set_ylabel('Amplitude', fontsize=11, color='white')
-    ax2.grid(True, alpha=0.3, linestyle='--', color='gray')
-    ax2.set_facecolor('#1a1a1a')
-    ax2.tick_params(colors='white')
-    ax2.spines['bottom'].set_color('white')
-    ax2.spines['left'].set_color('white')
-    ax2.spines['top'].set_visible(False)
-    ax2.spines['right'].set_visible(False)
-    
-    # Add statistics text
-    stats_text = f'Duration: {duration:.2f}s | Samples: {len(waveform_np):,} | Sample Rate: {sample_rate}Hz\n'
-    stats_text += f'Max: {waveform_np.max():.3f} | Min: {waveform_np.min():.3f} | Mean: {waveform_np.mean():.3f}'
-    fig.text(0.5, 0.02, stats_text, ha='center', fontsize=9, color='white', 
-             bbox=dict(boxstyle='round', facecolor='#2a2a2a', alpha=0.8))
-    
-    plt.tight_layout(rect=[0, 0.04, 1, 1])
-    fig.patch.set_facecolor('#0a0a0a')
-    
-    buf = BytesIO()
-    plt.savefig(buf, format='png', dpi=150, bbox_inches='tight', facecolor='#0a0a0a')
     buf.seek(0)
     plt.close(fig)
     return buf
@@ -269,7 +207,7 @@ st.set_page_config(page_title="🎵 Instrument Identifier Pro", layout="wide", i
 st.markdown("""
 <div style='text-align: center; padding: 2rem 0;'>
     <h1>🎵 Instrument Identifier Pro</h1>
-    <p class='hero-text'>Upload multiple WAV files • Waveform Analysis • Mel Spectrogram • AI-powered Classification</p>
+    <p class='hero-text'>Upload multiple WAV files and analyze with AI-powered Mel Spectrogram visualization</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -374,34 +312,14 @@ with col1:
         
         st.success(f"📂 Selected: **{st.session_state.selected_file}**")
         
-        # File tabs - ADDED WAVEFORM TAB
-        tab1, tab2, tab3 = st.tabs(["🎵 Audio Preview", "📊 Waveform", "🌈 Spectrogram"])
+        # File tabs
+        tab1, tab2 = st.tabs(["🎵 Audio Preview", "📊 Spectrogram"])
         
         with tab1:
             # Audio player - use file object directly
             st.audio(selected_data['file_obj'], format="audio/wav")
         
         with tab2:
-            if model_loaded:
-                try:
-                    with st.spinner("Generating waveform..."):
-                        waveform = wrapper.load_audio(selected_data['temp_path'])
-                        waveform_img = create_waveform_image(waveform)
-                    
-                    st.markdown("""
-                    <div class='spectrogram-container'>
-                        <h3 style='color: white; text-align: center; margin-bottom: 1rem;'>📈 Amplitude vs Time</h3>
-                    """, unsafe_allow_html=True)
-                    
-                    st.image(waveform_img, use_container_width=True)
-                    st.markdown("</div>", unsafe_allow_html=True)
-                    
-                except Exception as e:
-                    st.error(f"Error generating waveform: {e}")
-            else:
-                st.warning("⚠️ Model not loaded. Cannot generate waveform.")
-        
-        with tab3:
             if model_loaded:
                 try:
                     with st.spinner("Generating spectrogram..."):
@@ -430,7 +348,7 @@ with col1:
             <div style='font-size: 6rem; margin-bottom: 2rem;'>🎵</div>
             <h2 style='color: white; margin-bottom: 1rem;'>Upload WAV Files</h2>
             <p style='color: rgba(255,255,255,0.8); max-width: 500px; margin: 0 auto;'>
-                Use the sidebar to upload multiple WAV files. View waveforms, spectrograms, and get AI predictions!
+                Use the sidebar to upload multiple WAV files. View Mel Spectrograms and get AI predictions!
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -571,6 +489,6 @@ if st.session_state.results:
 # Footer
 st.markdown("""
 <div style='text-align: center; padding: 3rem 0 1rem 0; color: rgba(255,255,255,0.7);'>
-    <p>✅ Enhanced! • Waveform Analysis • Mel Spectrogram • NSynth AI • Multi-file Support</p>
+    <p>✅ Fully Fixed! • NSynth AI • Mel Spectrogram Visualization • Multi-file Support</p>
 </div>
 """, unsafe_allow_html=True)

@@ -16,6 +16,9 @@ import matplotlib
 matplotlib.use('Agg')
 from io import BytesIO
 import pandas as pd
+import librosa
+import soundfile as sf
+from scipy import signal
 
 # ==== Constants ====
 SAMPLE_RATE = 16000
@@ -94,13 +97,29 @@ class NsynthOnnxWrapper:
         self.to_db = AmplitudeToDB(stype="power")
 
     def load_audio(self, wav_path: str):
-        """Load and preprocess audio"""
-        waveform, sr = torchaudio.load(wav_path)
-        if sr != SAMPLE_RATE:
-            waveform = torchaudio.functional.resample(waveform, sr, SAMPLE_RATE)
-        if waveform.size(0) > 1:
-            waveform = torch.mean(waveform, dim=0, keepdim=True)
-        return waveform
+        """Load and preprocess audio using librosa (more reliable on Windows)"""
+        try:
+            # Use librosa instead of torchaudio.load to avoid FFmpeg issues
+            waveform, sr = librosa.load(wav_path, sr=SAMPLE_RATE, mono=True)
+            # Convert to torch tensor and add channel dimension
+            waveform = torch.from_numpy(waveform).unsqueeze(0).float()
+            return waveform
+        except Exception as e:
+            # Fallback to soundfile if librosa fails
+            try:
+                waveform, sr = sf.read(wav_path)
+                if len(waveform.shape) > 1:  # Multi-channel
+                    waveform = np.mean(waveform, axis=1)  # Convert to mono
+                
+                # Resample if needed (simple linear interpolation)
+                if sr != SAMPLE_RATE:
+                    waveform = signal.resample(waveform, int(len(waveform) * SAMPLE_RATE / sr))
+                
+                # Convert to torch tensor and add channel dimension
+                waveform = torch.from_numpy(waveform).unsqueeze(0).float()
+                return waveform
+            except Exception as e2:
+                raise Exception(f"Failed to load audio with both librosa and soundfile: {e}, {e2}")
 
     def compute_mel_spec(self, waveform):
         """Compute mel spectrogram"""
@@ -274,7 +293,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Load model
-MODEL_PATH = "nsynth_instrument_family_cnn.onnx"
+MODEL_PATH = r"D:\Sri Nithilan\Documents\GitHub\Intrument-detection-using-CNN\models\nsynth_instrument_family_cnn.onnx"
 
 @st.cache_resource
 def load_model():
